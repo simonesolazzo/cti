@@ -9,6 +9,7 @@
 
 1. [Fase 1 — Inizializzazione del progetto Angular e integrazione Docker](#fase-1--inizializzazione-del-progetto-angular-e-integrazione-docker)
 2. [Fase 2 — Definizione delle interfacce TypeScript](#fase-2--definizione-delle-interfacce-typescript)
+3. [Fase 3 — Core Service (WebSocket e RxJS)](#fase-3--core-service-websocket-e-rxjs)
 
 ---
 
@@ -103,3 +104,70 @@ export interface Call {
 > In TypeScript, grazie all'uso rigoroso delle `interface`, stiamo istruendo il compilatore: "questo oggetto deve avere questi precisi campi". Il compilatore (o l'IDE) ci impedirà di compiere errori di battitura o di accedere a proprietà inesistenti *prima* che il codice venga mai eseguito. Questa è la vera forza dei framework strongly-typed come Angular e .NET.
 
 ✅ **Fase 2 completata.**
+
+
+---
+
+## Fase 3 — Core Service (WebSocket e RxJS)
+
+### Obiettivo
+Gestire la comunicazione in tempo reale con il backend tramite `socket.io-client` ed esporre i dati ai componenti visivi sfruttando il pattern reattivo di **RxJS** tramite l'uso degli **Observable**.
+
+### 3.1 — Installazione dipendenze
+
+Ci siamo spostati nella cartella del frontend e abbiamo installato il client WebSocket:
+```powershell
+npm install socket.io-client
+```
+
+### 3.2 — Creazione del CallService
+
+Abbiamo generato un servizio core `frontend/src/app/services/call.service.ts` incaricato di gestire in esclusiva la connessione al backend. Nessun componente parlerà mai direttamente con il WebSocket, tutti passeranno dal `CallService`.
+
+```typescript
+import { Injectable } from '@angular/core';
+import { io, Socket } from 'socket.io-client';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { Call } from '../models/call.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class CallService {
+  private socket: Socket;
+  
+  private callsSubject = new BehaviorSubject<Call[]>([]);
+  public calls$: Observable<Call[]> = this.callsSubject.asObservable();
+
+  constructor() {
+    this.socket = io('http://localhost:3000');
+    this.setupSocketListeners();
+  }
+
+  private setupSocketListeners(): void {
+    this.socket.on('initial-calls', (calls: Call[]) => {
+      this.callsSubject.next(calls);
+    });
+
+    this.socket.on('call-updated', (updatedCall: Call) => {
+      const currentCalls = this.callsSubject.getValue();
+      const index = currentCalls.findIndex(c => c._id === updatedCall._id);
+      
+      if (index !== -1) {
+        currentCalls[index] = updatedCall;
+        this.callsSubject.next([...currentCalls]);
+      } else {
+        this.callsSubject.next([updatedCall, ...currentCalls]);
+      }
+    });
+  }
+}
+```
+
+> **Parallelismo con .NET / Spring e l'uso di RxJS:**
+> 1. **`@Injectable({ providedIn: 'root' })`**: Questo decoratore fa sì che Angular registri automaticamente questa classe nel suo sistema di Dependency Injection come Singleton (un'unica istanza condivisa per tutta l'app). È l'equivalente di registrare un servizio come `AddSingleton<CallService>()` nello `Startup.cs` di .NET o usare l'annotazione `@Service` in Spring Boot.
+> 2. **`BehaviorSubject` e `Observable`**: Anziché avere i componenti visivi che chiamano in continuazione metodi o pollano il database (come si faceva spesso con vecchie app MVC o con JQuery), qui usiamo il pattern Publisher/Subscriber di RxJS.
+>    - Il `BehaviorSubject` (privato) è il "Publisher". Quando arriva un messaggio dal WebSocket, il servizio "spinge" i nuovi dati usando `.next()`.
+>    - L'`Observable` (pubblico, solitamente con il suffisso `$`) è il canale di lettura a cui i componenti visivi si "iscriveranno" (Subscribe). Quando i dati cambiano nel Service, l'interfaccia grafica reagirà automaticamente in tempo reale senza dover essere rinfrescata manualmente, portando il concetto di reattività all'estremo rispetto a quello che si farebbe su una vista standard in Jinja/Flask.
+
+✅ **Fase 3 completata.**
