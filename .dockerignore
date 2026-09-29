@@ -1,0 +1,19 @@
+# File e cartelle da NON copiare nell'immagine Docker.
+# È l'equivalente di .gitignore, ma per Docker.
+#
+# Senza .dockerignore, `COPY . .` copierebbe TUTTO,
+# inclusi node_modules (centinaia di MB), .env, .git, ecc.
+
+node_modules
+.env
+.git
+.gitignore
+GUIDA_STUDIO.md
+
+# Python workers (non servono nell'immagine del server Node.js)
+workers
+
+# Log e file temporanei
+*.log
+.DS_Store
+Thumbs.db

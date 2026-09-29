@@ -1,0 +1,74 @@
+# --------------------------------------------------
+# docker-compose.yml — Orchestrazione dei servizi CTI
+# --------------------------------------------------
+# PRIMA (senza Docker Compose):
+#   Terminale 1: docker run -d --name mongo-cti -p 27017:27017 -v mongo-cti-data:/data/db mongo:7
+#   Terminale 2: node index.js
+#   → devi ricordarti i comandi, avviare tutto manualmente,
+#     e la MONGO_URI nel .env punta a "localhost"
+#
+# DOPO (con Docker Compose):
+#   docker compose up
+#   → un solo comando avvia TUTTO (MongoDB + Server Node.js)
+#   → i container comunicano tra loro tramite un network Docker interno
+#   → riavvio automatico se un container crasha
+#
+# Parallelismo Flask:
+#   Identico! Docker Compose funziona allo stesso modo
+#   indipendentemente dal linguaggio del server.
+# --------------------------------------------------
+
+services:
+
+  # ---- MongoDB ----
+  # Equivalente del nostro vecchio:
+  #   docker run -d --name mongo-cti -p 27017:27017 -v mongo-cti-data:/data/db mongo:7
+  mongo:
+    image: mongo:7
+    container_name: cti-mongo
+    ports:
+      - "27017:27017"           # Espone la porta per accesso diretto (debug, Compass)
+    volumes:
+      - mongo-data:/data/db     # Dati persistenti (sopravvivono a docker compose down)
+    restart: unless-stopped     # Riavvia automaticamente se crasha
+    # healthcheck: verifica che MongoDB sia pronto ad accettare connessioni
+    # prima che il server Node.js tenti di connettersi.
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---- Server Node.js (CTI API) ----
+  server:
+    build: .                    # Costruisce l'immagine dal Dockerfile nella directory corrente
+    container_name: cti-server
+    ports:
+      - "3000:3000"             # Mappa porta 3000 del container → porta 3000 dell'host
+    environment:
+      # NOTA: qui la MONGO_URI usa "mongo" (il nome del servizio sopra),
+      # NON "localhost"!
+      #
+      # Dentro Docker Compose, i container comunicano tramite un
+      # network interno. Ogni servizio è raggiungibile con il suo
+      # nome come hostname. "mongo" si risolve all'IP del container MongoDB.
+      #
+      # PRIMA:  mongodb://localhost:27017/cti_db     (host → container)
+      # DOPO:   mongodb://mongo:27017/cti_db         (container → container)
+      - MONGO_URI=mongodb://mongo:27017/cti_db
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      # Il server si avvia SOLO dopo che MongoDB ha passato l'healthcheck.
+      # Senza questa condizione, il server potrebbe avviarsi prima che
+      # MongoDB sia pronto, causando errori di connessione.
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+# Volume persistente per i dati MongoDB.
+# I dati sopravvivono anche a `docker compose down`.
+# Per cancellare anche i dati: `docker compose down -v`
+volumes:
+  mongo-data:
