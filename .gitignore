@@ -16,3 +16,4 @@ workers/.venv/
 __pycache__/
 *.pyc
 
+PROMPT_ANGULAR.md

@@ -67,6 +67,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ---- Frontend Angular ----
+  # Come per il server backend, inseriamo anche il frontend.
+  # Utilizziamo un'immagine Node, montiamo il volume per l'hot-reload
+  # e avviamo il server esposto su 0.0.0.0
+  frontend:
+    image: node:22-alpine
+    container_name: cti-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "4200:4200"
+    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --poll 2000"
+    restart: unless-stopped
+
 # Volume persistente per i dati MongoDB.
 # I dati sopravvivono anche a `docker compose down`.
 # Per cancellare anche i dati: `docker compose down -v`
