@@ -10,6 +10,7 @@
 1. [Fase 1 — Inizializzazione del progetto Angular e integrazione Docker](#fase-1--inizializzazione-del-progetto-angular-e-integrazione-docker)
 2. [Fase 2 — Definizione delle interfacce TypeScript](#fase-2--definizione-delle-interfacce-typescript)
 3. [Fase 3 — Core Service (WebSocket e RxJS)](#fase-3--core-service-websocket-e-rxjs)
+4. [Fase 4 — Sviluppo del Dashboard Component visivo](#fase-4--sviluppo-del-dashboard-component-visivo)
 
 ---
 
@@ -171,3 +172,76 @@ export class CallService {
 >    - L'`Observable` (pubblico, solitamente con il suffisso `$`) è il canale di lettura a cui i componenti visivi si "iscriveranno" (Subscribe). Quando i dati cambiano nel Service, l'interfaccia grafica reagirà automaticamente in tempo reale senza dover essere rinfrescata manualmente, portando il concetto di reattività all'estremo rispetto a quello che si farebbe su una vista standard in Jinja/Flask.
 
 ✅ **Fase 3 completata.**
+
+
+---
+
+## Fase 4 — Sviluppo del Dashboard Component visivo
+
+### Obiettivo
+Creare il primo componente grafico (la Dashboard), iniettare il nostro `CallService` e "ascoltare" in tempo reale lo stream dei dati per disegnare una tabella che si aggiorna da sola.
+
+### 4.1 — Creazione e Logica del Componente
+
+Abbiamo creato tre file per il componente in `frontend/src/app/components/dashboard`:
+- `dashboard.component.ts` (La Logica)
+- `dashboard.component.html` (La Vista)
+- `dashboard.component.css` (Lo Stile)
+
+Nel file TypeScript abbiamo usato l'approccio reattivo puro:
+
+```typescript
+import { Component, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { CallService } from '../../services/call.service';
+import { Observable } from 'rxjs';
+import { Call } from '../../models/call.model';
+
+@Component({
+  selector: 'app-dashboard',
+  standalone: true,
+  imports: [CommonModule],
+  templateUrl: './dashboard.component.html',
+  styleUrls: ['./dashboard.component.css']
+})
+export class DashboardComponent {
+  private callService = inject(CallService);
+  public calls$: Observable<Call[]> = this.callService.calls$;
+}
+```
+
+> **Il salto mentale: zero variabili di stato locali!**
+> Avrai notato che nel componente **non** abbiamo creato un array vuoto `calls = []` in cui salvare i dati. Abbiamo semplicemente preso l'altoparlante (Observable) del servizio e lo abbiamo passato all'interfaccia HTML così com'è. 
+
+### 4.2 — Sottoscrizione tramite "Async Pipe" nel Template
+
+Anziché fare il `.subscribe()` manualmente nel TypeScript (cosa che ci avrebbe costretto a ricordarci di fare `.unsubscribe()` alla chiusura della pagina per evitare memory leaks), abbiamo usato una *best practice* assoluta di Angular: il pipe `async`.
+
+```html
+@for (call of calls$ | async; track call._id) {
+  <tr>
+    <td>{{ call.callerNumber }}</td>
+    <td>{{ call.status }}</td>
+  </tr>
+}
+```
+
+> **Cosa fa l'Async Pipe (`| async`)?**
+> Svolge tre compiti fondamentali automaticamente:
+> 1. Accende la radio (esegue il `.subscribe()` al momento del rendering).
+> 2. Estrae il dato puro dall'Observable e lo passa all'HTML (permettendoci di ciclarci sopra col `@for`).
+> 3. Spegne la radio (esegue l'`.unsubscribe()` non appena l'utente cambia pagina e il componente viene distrutto).
+
+### 4.3 — Configurazione del Routing
+
+Infine, abbiamo detto ad Angular che quando l'utente naviga all'URL di base (`/`), deve inserire questo componente all'interno del `<router-outlet>` che avevamo preparato nella Fase 1.
+
+File `app.routes.ts`:
+```typescript
+export const routes: Routes = [
+  { path: '', component: DashboardComponent },
+  { path: '**', redirectTo: '' }
+];
+```
+
+✅ **Fase 4 completata.**
