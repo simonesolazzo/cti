@@ -141,16 +141,23 @@ export class CallService {
   public calls$: Observable<Call[]> = this.callsSubject.asObservable();
 
   constructor() {
-    this.socket = io('http://localhost:3000');
+    // 1. Inizializziamo la connessione WebSocket usando 127.0.0.1
+    // (Bypassiamo 'localhost' per evitare conflitti con IPv6 in Docker su Windows)
+    this.socket = io('http://127.0.0.1:3000');
     this.setupSocketListeners();
   }
 
   private setupSocketListeners(): void {
-    this.socket.on('initial-calls', (calls: Call[]) => {
-      this.callsSubject.next(calls);
+    // Il backend emette 'call:created' quando arriva una POST
+    this.socket.on('call:created', (newCall: Call) => {
+      const currentCalls = this.callsSubject.getValue();
+      // Inseriamo la nuova chiamata in cima all'array
+      this.callsSubject.next([newCall, ...currentCalls]);
     });
 
-    this.socket.on('call-updated', (updatedCall: Call) => {
+    // Il backend emette 'call:updated' (payload con call e previousStatus) quando arriva una PATCH
+    this.socket.on('call:updated', (payload: { call: Call; previousStatus: string }) => {
+      const updatedCall = payload.call;
       const currentCalls = this.callsSubject.getValue();
       const index = currentCalls.findIndex(c => c._id === updatedCall._id);
       
@@ -164,6 +171,11 @@ export class CallService {
   }
 }
 ```
+
+> **Nota di Troubleshooting (Risoluzione problemi):**
+> Durante l'integrazione ci siamo scontrati con due classici problemi di sviluppo locale con Docker e WebSocket:
+> 1. **Errore WebSocket `transport close`:** Usando `http://localhost:3000`, il browser (su host Windows) cercava di connettersi usando il protocollo IPv6 (`::1`), ma Docker esponeva il container in IPv4 (`0.0.0.0`). Risultato: il server faceva cadere la connessione istantaneamente. Usando esplicitamente `127.0.0.1` abbiamo aggirato il problema.
+> 2. **Missmatch dei nomi degli eventi:** All'inizio la dashboard non riceveva i dati perché ascoltava eventi chiamati `initial-calls` e `call-updated`, mentre il backend Node.js emetteva eventi chiamati `call:created` e `call:updated`. Ascoltare il canale sbagliato in una comunicazione Publisher/Subscriber equivale ad avere la radio sintonizzata sulla frequenza errata!
 
 > **Parallelismo con .NET / Spring e l'uso di RxJS:**
 > 1. **`@Injectable({ providedIn: 'root' })`**: Questo decoratore fa sì che Angular registri automaticamente questa classe nel suo sistema di Dependency Injection come Singleton (un'unica istanza condivisa per tutta l'app). È l'equivalente di registrare un servizio come `AddSingleton<CallService>()` nello `Startup.cs` di .NET o usare l'annotazione `@Service` in Spring Boot.

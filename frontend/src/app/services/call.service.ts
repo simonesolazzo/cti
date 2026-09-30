@@ -20,33 +20,46 @@ export class CallService {
   public calls$: Observable<Call[]> = this.callsSubject.asObservable();
 
   constructor() {
-    // 1. Inizializziamo la connessione WebSocket
-    this.socket = io('http://localhost:3000');
+    console.log('⚙️ CallService: Inizializzazione in corso...');
+    this.socket = io('http://127.0.0.1:3000');
+    
+    this.socket.on('connect', () => {
+      console.log('✅ WebSocket connesso con successo! ID:', this.socket.id);
+    });
+    
+    this.socket.on('connect_error', (err) => {
+      console.error('❌ Errore connessione WebSocket:', err);
+    });
 
-    // 2. Registriamo i listener
     this.setupSocketListeners();
   }
 
   private setupSocketListeners(): void {
-    // In un'app reale, il backend potrebbe inviarci le chiamate già attive al momento della connessione
-    this.socket.on('initial-calls', (calls: Call[]) => {
-      this.callsSubject.next(calls);
+    // Listener universale per debuggare TUTTI gli eventi in arrivo
+    this.socket.onAny((eventName, ...args) => {
+      console.log(`[Socket.IO DEBUG] Evento '${eventName}' ricevuto con dati:`, args);
     });
 
-    // Quando arriva un aggiornamento di una singola chiamata o una nuova chiamata
-    this.socket.on('call-updated', (updatedCall: Call) => {
-      // Preleviamo lo stato corrente dell'array
+    // Il backend emette 'call:created' quando arriva una POST
+    this.socket.on('call:created', (newCall: Call) => {
+      console.log('📡 Ricevuta nuova chiamata dal WebSocket:', newCall);
+      const currentCalls = this.callsSubject.getValue();
+      // Mettiamo la nuova chiamata in cima alla lista
+      this.callsSubject.next([newCall, ...currentCalls]);
+    });
+
+    // Il backend emette 'call:updated' (payload con call e previousStatus) quando arriva una PATCH
+    this.socket.on('call:updated', (payload: { call: Call; previousStatus: string }) => {
+      console.log(`📡 Aggiornamento chiamata (da ${payload.previousStatus} a ${payload.call.status}):`, payload.call);
+      const updatedCall = payload.call;
       const currentCalls = this.callsSubject.getValue();
       const index = currentCalls.findIndex(c => c._id === updatedCall._id);
       
       if (index !== -1) {
-        // La chiamata esiste già: la aggiorniamo
         currentCalls[index] = updatedCall;
-        // In Angular, per scatenare il ridisegno visivo spesso è necessario creare
-        // un nuovo riferimento in memoria dell'array, quindi usiamo lo spread operator [...]
         this.callsSubject.next([...currentCalls]);
       } else {
-        // Nuova chiamata: la mettiamo in cima alla lista
+        // Se non l'avevamo in memoria, la aggiungiamo comunque
         this.callsSubject.next([updatedCall, ...currentCalls]);
       }
     });
