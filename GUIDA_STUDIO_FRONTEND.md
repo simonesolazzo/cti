@@ -257,3 +257,85 @@ export const routes: Routes = [
 ```
 
 ✅ **Fase 4 completata.**
+
+
+---
+
+## Fase 5 — HTTP Client, Gestione Memoria e Angular Material
+
+### Obiettivo
+Recuperare lo storico delle chiamate al caricamento della pagina (tramite API REST), integrare librerie UI professionali (Angular Material) e introdurre concetti avanzati come le chiamate HTTP e la corretta gestione delle risorse.
+
+### 5.1 — Configurazione HTTP Client e Paginazione
+A differenza di Express o Flask dove il server ha accesso diretto al DB, il nostro frontend parte "vuoto". Abbiamo bisogno di recuperare lo storico.
+Per fare chiamate REST in Angular, utilizziamo `HttpClient`, che è l'analogo della libreria `requests` in Python, ma basata su RxJS (restituisce un Observable anziché una Promise).
+
+Abbiamo abilitato l'HTTP in `app.config.ts`:
+```typescript
+import { provideHttpClient } from '@angular/common/http';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideRouter(routes),
+    provideHttpClient() // Abilita l'iniezione di HttpClient nei servizi
+  ]
+};
+```
+
+E aggiornato il `CallService` per fare il `GET` iniziale sfruttando la paginazione del backend tramite `HttpParams`. Abbiamo inoltre aggiunto `totalCalls$` per tracciare il numero totale di chiamate nel database, incrementandolo in tempo reale:
+```typescript
+  private loadInitialCalls(): void {
+    const params = new HttpParams().set('page', '1').set('limit', '10');
+
+    this.http.get<{ data: Call[], pagination: any }>('http://127.0.0.1:3000/calls', { params })
+      .subscribe({
+        next: (response) => {
+          this.callsSubject.next(response.data);
+          this.totalCallsSubject.next(response.pagination.total);
+        },
+        error: (err) => console.error('Errore recupero storico:', err)
+      });
+  }
+```
+
+> **Nota di Troubleshooting (CORS):**
+> Appena inserita la chiamata HTTP, il browser ci ha bloccato con un errore "Cross-Origin Request Blocked" per mancanza dell'header `Access-Control-Allow-Origin`. Questo perché, per ragioni di sicurezza, il browser vieta alle pagine su una porta (4200) di chiamare API su un'altra (3000). Abbiamo risolto installando e aggiungendo il middleware `cors` nel backend Express (`app.use(cors())`).
+
+> **Memory Management & Unsubscribe:**
+> In Angular, quando ti iscrivi manualmente a un Observable infinito usando `.subscribe()`, devi sempre ricordarti di pulire l'iscrizione quando il componente viene distrutto, altrimenti causi un *Memory Leak*. 
+> Tuttavia, `HttpClient` di Angular è "intelligente": le sue chiamate sono "One-Shot" (restituiscono il valore e si chiudono da sole). L'unsubscribe manuale non è obbligatorio.
+
+### 5.2 — Integrazione di Angular Material e UI Paginazione Live
+Abbiamo installato Angular Material tramite la sua schematica CLI (che si è occupata di configurare CSS, font e `angular.json` in automatico):
+```bash
+ng add @angular/material --theme=azure-blue --typography=true --animations=true
+```
+
+In una dashboard CTI live, non si usa il classico paginatore a fondo pagina perché i nuovi eventi WebSocket farebbero scivolare i record continuamente. Si usa la tecnica del "mostrami le ultime X chiamate", specificando però chiaramente all'utente il totale.
+
+Abbiamo importato i moduli standalone nel `DashboardComponent` e aggiornato l'HTML aggiungendo il sottotitolo esplicativo:
+```html
+<mat-card-subtitle>
+  @if (totalCalls$ | async; as total) {
+    @if (calls$ | async; as calls) {
+      (Mostrando le ultime {{ calls.length }} su {{ total }} chiamate totali)
+    }
+  }
+</mat-card-subtitle>
+```
+Il risultato è una tabella (`<table mat-table>`) esteticamente pulita e responsiva.
+
+### 5.3 — Troubleshooting: Docker Volumes, Esbuild e Hot Reload
+Durante la Fase 5 ci siamo scontrati con un blocco del server Angular (`NS_ERROR_NET_EMPTY_RESPONSE`). Vite usa `esbuild` per l'ottimizzazione, ma su Docker per Windows (tramite mount WSL2) le continue letture/scritture sui file scatenano deadlock nel filesystem, bloccando l'intero container.
+
+Abbiamo risolto aggiungendo **volumi anonimi** al `docker-compose.yml`:
+```yaml
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # ISOLA node_modules nel container Linux
+      - /app/.angular     # ISOLA la cache di Angular nel container Linux
+    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --poll 2000"
+```
+Isolando le cartelle di build su Linux, il deadlock sparisce e la compilazione impiega solo 2 secondi. Abbiamo inoltre ripristinato `--poll 2000` per garantire l'Hot Reload su Windows.
+
+✅ **Fase 5 completata.**

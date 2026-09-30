@@ -1,55 +1,25 @@
 .dashboard-container {
   padding: 20px;
-  font-family: Arial, sans-serif;
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
-h2 {
-  color: #333;
+mat-card {
   margin-bottom: 20px;
 }
 
 .calls-table {
   width: 100%;
-  border-collapse: collapse;
-  background-color: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.calls-table th, .calls-table td {
-  border-bottom: 1px solid #ddd;
-  padding: 12px 15px;
-  text-align: left;
-}
-
-.calls-table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
-  color: #444;
-}
-
-.calls-table tbody tr:hover {
-  background-color: #f1f1f1;
+  margin-top: 20px;
 }
 
 .text-center {
   text-align: center;
-  color: #888;
+  padding: 20px;
+  color: #666;
   font-style: italic;
 }
 
-.status-badge {
-  padding: 5px 10px;
-  border-radius: 20px;
-  font-size: 0.85em;
-  font-weight: 600;
-  text-transform: uppercase;
+mat-chip {
+  font-weight: 500;
 }
-
-.status-badge.queued { background-color: #fff3cd; color: #856404; }
-.status-badge.in-progress { background-color: #cce5ff; color: #004085; }
-.status-badge.completed { background-color: #d4edda; color: #155724; }
-.status-badge.failed { background-color: #f8d7da; color: #721c24; }

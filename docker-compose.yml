@@ -77,9 +77,11 @@ services:
     working_dir: /app
     volumes:
       - ./frontend:/app
+      - /app/node_modules # ISOLA node_modules nel container Linux per evitare deadlocks di esbuild su Windows
+      - /app/.angular     # ISOLA la cache di Angular nel container Linux per evitare blocchi in scrittura
     ports:
       - "4200:4200"
-    command: sh -c "npm install && npm run start -- --host 0.0.0.0"
+    command: sh -c "npm install && npm run start -- --host 0.0.0.0 --poll 2000"
     restart: unless-stopped
 
 # Volume persistente per i dati MongoDB.

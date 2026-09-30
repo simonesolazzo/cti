@@ -36,6 +36,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const cors = require('cors');               // Middleware CORS per Express
 const http = require('http');               // Modulo built-in di Node.js
 const { Server } = require('socket.io');    // Socket.IO server
 const connectDB = require('./db');
@@ -59,10 +60,7 @@ const io = new Server(server, {
 });
 
 // ----- Middleware -----
-// In Flask usi `request.get_json()` per leggere il body JSON.
-// In Express devi *abilitare* esplicitamente il parsing del JSON
-// tramite un middleware globale. È come un `@app.before_request`
-// che deserializza automaticamente ogni body JSON in `req.body`.
+app.use(cors()); // Abilita CORS per tutte le rotte Express
 app.use(express.json());
 
 // Rendiamo `io` accessibile da tutti i router tramite `req.app.get('io')`.
